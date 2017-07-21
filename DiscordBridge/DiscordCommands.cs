@@ -149,10 +149,10 @@ namespace DiscordBridge
 				.AddCheck((cmd, user, channel) => user.ServerPermissions.Administrator)
 				.Do(async e =>
 				{
-					User botUser = Client.CurrentServer.FindUsers(e.GetArg("name"), true).FirstOrDefault();
+					User botUser = Client.CurrentGuild.FindUsers(e.GetArg("name"), true).FirstOrDefault();
 
 					if (botUser == null
-					&& (botUser = Client.CurrentServer.Users.FirstOrDefault(u => u.Nickname.Equals(e.GetArg("name"), StringComparison.OrdinalIgnoreCase))) == null)
+					&& (botUser = Client.CurrentGuild.Users.FirstOrDefault(u => u.Nickname.Equals(e.GetArg("name"), StringComparison.OrdinalIgnoreCase))) == null)
 					{
 						await e.Channel.SendMessage($"User `{e.GetArg("name")}` is not on this server.");
 						return;

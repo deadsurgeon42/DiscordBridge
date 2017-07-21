@@ -6,15 +6,17 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Logging;
+using Discord.WebSocket;
 using DiscordBridge.Chat;
 using DiscordBridge.Extensions;
 using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.DB;
 using Color = Microsoft.Xna.Framework.Color;
 
 namespace DiscordBridge.Framework
 {
-	public class BridgeClient : DiscordClient
+	public class BridgeClient : DiscordSocketClient
 	{
 		public const string LOG_PATH = "DiscordLogs";
 
@@ -26,7 +28,7 @@ namespace DiscordBridge.Framework
 		/// The server to broadcast messages to. This is currently always the first server on the list,
 		/// but it should be improved upon in the future by adding a config option + command for changing servers.
 		/// </summary>
-		public Server CurrentServer => Servers.FirstOrDefault();
+		public IGuild CurrentGuild => Guilds.FirstOrDefault();
 
 		protected Dictionary<ulong, BridgeUser> Users { get; }
 
@@ -55,23 +57,6 @@ namespace DiscordBridge.Framework
 			});
 		}
 
-		protected override void Dispose(bool isDisposing)
-		{
-			if (isDisposing)
-			{
-				MessageReceived -= onMessageReceived;
-
-				foreach (var sr in Writers.Values)
-					sr.Dispose();
-
-				if (State == ConnectionState.Connected)
-				{
-					SetGame("");
-					ExecuteAndWait(Disconnect);
-				}
-			}
-		}
-
 		/// <summary>
 		/// Gets or sets the <see cref="BridgeUser"/> associated with the given discord user identity.
 		/// </summary>
@@ -97,7 +82,7 @@ namespace DiscordBridge.Framework
 		/// </summary>
 		/// <param name="u">The discord user.</param>
 		/// <returns>The associated Bridge player object.</returns>
-		public BridgeUser this[User u]
+		public BridgeUser this[IUser u]
 		{
 			get { return this[u.Id]; }
 			set { Users[u.Id] = value; }
@@ -108,9 +93,11 @@ namespace DiscordBridge.Framework
 			string nameDateFormat = "yyyy-MM-dd_hh-mm-ss";
 			string logDateFormat = "yyyy-MM-dd hh:mm:ss";
 			
-			Log.Message += (o, e) =>
+			Log += e =>
 			{
-				/* This is going to be purely a message log to keep all messages said in channels by non-bot users,
+			  return Task.Run(() =>
+			  {
+			    				/* This is going to be purely a message log to keep all messages said in channels by non-bot users,
 				   unless it's a Terraria channel. Source will always be channel name, and each channel will have
 				   a separate folder. */
 				if (!String.IsNullOrWhiteSpace(e.Source))
@@ -139,6 +126,8 @@ namespace DiscordBridge.Framework
 						// This is normal behaviour for if we attempt to write to the log after it has been disposed
 					}
 				}
+
+			  });
 			};
 		}
 
@@ -148,14 +137,8 @@ namespace DiscordBridge.Framework
 			{
 				try
 				{
-					await Connect(_main.Config.BotToken, TokenType.Bot);
-					if (State == ConnectionState.Connected)
-					{
-						// Do everything that needs to be done when the bot connects to the server here
-
-						if (CurrentGame.Name != "Terraria")
-							SetGame(new Game("Terraria", GameType.Default, "https://terraria.org"));
-					}
+				  await LoginAsync(TokenType.Bot, _main.Config.BotToken);
+          await StartAsync();
 				}
 				catch (Exception ex)
 				{
@@ -177,7 +160,7 @@ namespace DiscordBridge.Framework
 		{
 			try
 			{
-				if (Servers.Any(s => s.Id == invite.Server.Id))
+				if (Guilds.Any(s => s.Id == invite.Server.Id))
 				{
 					// Already joined the server
 					return true;
@@ -194,7 +177,7 @@ namespace DiscordBridge.Framework
 			}
 		}
 
-		public async Task<BridgeUser> LoadUser(User user)
+		public async Task<BridgeUser> LoadUser(IUser user)
 		{
 			BridgeUser player = this[user];
 
@@ -211,7 +194,7 @@ namespace DiscordBridge.Framework
 
 		#region Handlers
 
-		private async void onMessageReceived(object sender, MessageEventArgs e)
+		private async Task onMessageReceived(SocketMessage socketMessage)
 		{
 			if (e.Message.IsAuthor)
 				return;

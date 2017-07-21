@@ -109,6 +109,7 @@
     <Compile Include="Chat\PlayerChattedEventArgs.cs" />
     <Compile Include="Chat\PlayerChattingEventArgs.cs" />
     <Compile Include="DiscordCommands.cs" />
+    <Compile Include="Extensions\GuildExtensions.cs" />
     <Compile Include="Framework\BridgeClient.cs" />
     <Compile Include="Framework\LoginManager.cs" />
     <Compile Include="TShockCommands.cs" />

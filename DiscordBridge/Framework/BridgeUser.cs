@@ -10,17 +10,17 @@ namespace DiscordBridge.Framework
 	public class BridgeUser : TSPlayer
 	{
 		private List<string> _messages = new List<string>();
-		private Channel _channel;
+		private ITextChannel _channel;
 
 		public bool AutoFlush { get; set; } = true;
 
-		public Channel CommandChannel
+		public ITextChannel CommandChannel
 		{
-			get { return _channel ?? DiscordUser.PrivateChannel; }
+			get { return _channel; }
 			set { _channel = value; }
 		}
 
-		public Discord.User DiscordUser { get; }
+		public Discord.IUser DiscordUser { get; }
 
 		private BridgeUser(TShockAPI.DB.User user) : base(user.Name)
 		{
@@ -28,12 +28,12 @@ namespace DiscordBridge.Framework
 			User = user;
 		}
 
-		public BridgeUser(Discord.User discordUser) : base(discordUser.Name)
+		public BridgeUser(Discord.IUser discordUser) : base(discordUser.Username)
 		{
 			DiscordUser = discordUser;
 		}
 
-		public BridgeUser(TShockAPI.DB.User user, Discord.User discordUser) : this(user)
+		public BridgeUser(TShockAPI.DB.User user, Discord.IUser discordUser) : this(user)
 		{
 			DiscordUser = discordUser;
 			IsLoggedIn = true;
@@ -45,10 +45,8 @@ namespace DiscordBridge.Framework
 			{
 					try
 					{
-						Message m = await CommandChannel.SendMessage(String.Join("\n", _messages));
-						if (m?.State == MessageState.Failed)
-							TShock.Log.Error($"discord-bridge: Message broadcasting to channel '{CommandChannel.Name}' failed!");
-				}
+						await CommandChannel.SendMessageAsync(String.Join("\n", _messages));
+					}
 					catch (Exception ex)
 					{
 						TShock.Log.Error(ex.ToString());
@@ -100,9 +98,7 @@ namespace DiscordBridge.Framework
 				{
 					try
 					{
-						Message m = await CommandChannel.SendMessage(msg);
-						if (m?.State == MessageState.Failed)
-							TShock.Log.Error($"discord-bridge: Message broadcasting to channel '{CommandChannel.Name}' failed!");
+						await CommandChannel.SendMessageAsync(msg);
 					}
 					catch (Exception ex)
 					{

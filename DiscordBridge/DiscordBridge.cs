@@ -38,8 +38,11 @@ namespace DiscordBridge
 
 		public override Version Version => System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
 
+    public static DiscordBridge Instance { get; private set; }
+
 		public DiscordBridge(Main game) : base(game)
 		{
+		  Instance = this;
 			ChatHandler = new ChatHandler();
 		}
 
@@ -76,14 +79,14 @@ namespace DiscordBridge
 		{
 			Task.Run(async () =>
 			{
-				if (Client.State == ConnectionState.Connected)
+				if (Client.ConnectionState == ConnectionState.Connected)
 				{
 					foreach (string s in Config.TerrariaChannels)
 					{
-						Channel c = Client.CurrentServer.FindChannels(s, exactMatch: true).FirstOrDefault();
+						IGuildChannel c = (await Client.CurrentGuild.FindChannels(s, exactMatch: true)).FirstOrDefault();
 						try
 						{
-							Message m = await c?.SendMessage(e.Message.SetFormat(Config.DiscordChatFormat).ToString().FormatChat(e.ChatFormatters).StripTags(true));
+							Message m = await c?(e.Message.SetFormat(Config.DiscordChatFormat).ToString().FormatChat(e.ChatFormatters).StripTags(true));
 							if (m.State == MessageState.Failed)
 								TShock.Log.ConsoleError($"discord-bridge: Message broadcasting to channel '{c.Name}' failed!");
 						}
@@ -96,12 +99,12 @@ namespace DiscordBridge
 					// Multi-Server Broadcast
 					foreach (ConfigFile.ServerBot bot in Config.ServerBots.FindAll(b => b.Id > 0))
 					{
-						User botUser = Client.CurrentServer.GetUser(bot.Id);
+						IUser botUser = Client.CurrentUser;
 
 						if (botUser == null || !botUser.IsBot /* Apparently bots can be "Offline" while being connected?? || botUser.Status == UserStatus.Offline*/)
 						{
 							// We only support active bots, mang
-							Client.Log.Warning("OnChat", $"Broadcasting to bot {bot.Id} failed (null: {botUser == null} | IsBot: {botUser?.IsBot} | Status: {botUser?.Status?.Value})");
+							Client.Log("OnChat", $"Broadcasting to bot {bot.Id} failed (null: {botUser == null} | IsBot: {botUser?.IsBot} | Status: {botUser?.Status})");
 							return;
 						}
 
@@ -143,17 +146,15 @@ namespace DiscordBridge
 
 						try
 						{
-							Message m = await botUser.SendMessage(ChatHandler.CreateMessage(bot.Broadcast.Format)
-								.SetHeader(botNick.ToString())
-								.Prefix(prefixes)
-								.SetName(name.ToString())
-								.Suffix(suffixes)
-								.SetText(text).ToString()
-								.FormatChat(e.ChatFormatters)
-								.ParseColors(colorDictionary));
-							if (m?.State == MessageState.Failed)
-								Client.Log.Warning("OnChat", $"Broadcasting to bot {bot.Id} failed (null: {botUser == null} | IsBot: {botUser?.IsBot} | Status: {botUser?.Status?.Value})");
-						}
+						  await botUser.SendMessageAsync(ChatHandler.CreateMessage(bot.Broadcast.Format)
+						    .SetHeader(botNick.ToString())
+						    .Prefix(prefixes)
+						    .SetName(name.ToString())
+						    .Suffix(suffixes)
+						    .SetText(text).ToString()
+						    .FormatChat(e.ChatFormatters)
+						    .ParseColors(colorDictionary));
+            }
 						catch (Exception ex)
 						{
 							TShock.Log.Error(ex.ToString());
@@ -170,7 +171,7 @@ namespace DiscordBridge
 
 			Task.Run(async () =>
 			{
-				if (Client.State == ConnectionState.Connected)
+				if (Client.ConnectionState == ConnectionState.Connected)
 				{
 					try
 					{
@@ -179,15 +180,15 @@ namespace DiscordBridge
 						{
 							foreach (string s in Config.TerrariaChannels)
 							{
-								Channel c = Client.CurrentServer.FindChannels(s, exactMatch: true).FirstOrDefault();
-								Message m = await c?.SendMessage($"`{p.Name}` has joined.");
+								IGuildChannel c = ;
+								IMessage m = await c?.SendMessageAsync($"`{p.Name}` has joined.");
 								if (m?.State == MessageState.Failed)
 									Client.Log.Warning("OnGreet", $"Broadcasting to channel {c.Name} failed");
 							}
 
 							foreach (ConfigFile.ServerBot bot in Config.ServerBots.FindAll(b => b.Id > 0))
 							{
-								User botUser = Client.CurrentServer.GetUser(bot.Id);
+								IUser botUser = Client.CurrentGuild.GetUser(bot.Id);
 
 								if (botUser == null || !botUser.IsBot /* Apparently bots can be "Offline" while being connected?? || botUser.Status == UserStatus.Offline*/)
 								{
@@ -196,10 +197,10 @@ namespace DiscordBridge
 									return;
 								}
 
-								var roleColor = Client.CurrentServer.CurrentUser.Roles.OrderBy(r => r.Position).LastOrDefault()?.Color;
+								var roleColor = Client.CurrentGuild.CurrentUser.Roles.OrderBy(r => r.Position).LastOrDefault()?.Color;
 								var color = roleColor == null ? Color.Yellow : new Color(roleColor.R, roleColor.G, roleColor.B);
 
-								string name = Client.CurrentServer.CurrentUser.Nickname ?? Client.CurrentServer.CurrentUser.Name;
+								string name = Client.CurrentGuild.CurrentUser.Nickname ?? Client.CurrentGuild.CurrentUser.Name;
 								Message m = await botUser.SendMessage(
 									$"{TShock.Utils.ColorTag($"{name}>", color)} {TShock.Utils.ColorTag($"{p.Name} has joined.", Color.Yellow)}");
 								if (m?.State == MessageState.Failed)
@@ -255,7 +256,7 @@ namespace DiscordBridge
 					{
 						foreach (string s in Config.TerrariaChannels)
 						{
-							Channel c = Client.CurrentServer.FindChannels(s, exactMatch: true).FirstOrDefault();
+							Channel c = Client.CurrentGuild.FindChannels(s, exactMatch: true).FirstOrDefault();
 							Message m = await c?.SendMessage($"`{p.Name}` has left.");
 							if (m?.State == MessageState.Failed)
 								Client.Log.Warning("OnLeave", $"Broadcasting to channel {c.Name} failed");
@@ -263,7 +264,7 @@ namespace DiscordBridge
 
 						foreach (ConfigFile.ServerBot bot in Config.ServerBots.FindAll(b => b.Id > 0))
 						{
-							User botUser = Client.CurrentServer.GetUser(bot.Id);
+							User botUser = Client.CurrentGuild.GetUser(bot.Id);
 
 							if (botUser == null || !botUser.IsBot /* Apparently bots can be "Offline" while being connected?? || botUser.Status == UserStatus.Offline*/)
 							{
@@ -272,10 +273,10 @@ namespace DiscordBridge
 								return;
 							}
 
-							var roleColor = Client.CurrentServer.CurrentUser.Roles.OrderBy(r => r.Position).LastOrDefault()?.Color;
+							var roleColor = Client.CurrentGuild.CurrentUser.Roles.OrderBy(r => r.Position).LastOrDefault()?.Color;
 							var color = roleColor == null ? Color.Yellow : new Color(roleColor.R, roleColor.G, roleColor.B);
 
-							string name = Client.CurrentServer.CurrentUser.Nickname ?? Client.CurrentServer.CurrentUser.Name;
+							string name = Client.CurrentGuild.CurrentUser.Nickname ?? Client.CurrentGuild.CurrentUser.Name;
 							Message m = await botUser.SendMessage($"{TShock.Utils.ColorTag($"{name}>", color)} {TShock.Utils.ColorTag($"{p.Name} has left.", Color.Yellow)}");
 							if (m?.State == MessageState.Failed)
 								Client.Log.Warning("OnLeave", $"Broadcasting to bot {bot.Id} failed (null: {botUser == null} | IsBot: {botUser?.IsBot} | Status: {botUser?.Status?.Value})");

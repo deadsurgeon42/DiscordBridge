@@ -27,11 +27,11 @@ namespace DiscordBridge.Framework
 		{
 			if (await ContainsData(id))
 			{
-				return new BridgeUser(TShock.Users.GetUserByID(await GetData(id)), _client.CurrentServer.GetUser(id));
+				return new BridgeUser(TShock.Users.GetUserByID(await GetData(id)), await _client.CurrentGuild.GetUserAsync(id));
 			}
 			else
 			{
-				return new BridgeUser(_client.CurrentServer.GetUser(id));
+				return new BridgeUser(await _client.CurrentGuild.GetUserAsync(id));
 			}
 		}
 
@@ -54,7 +54,7 @@ namespace DiscordBridge.Framework
 			});
 		}
 
-		public Task SetData(Discord.User discordUser, TShockAPI.DB.User tshockUser)
+		public Task SetData(Discord.IUser discordUser, TShockAPI.DB.User tshockUser)
 		{
 			return Task.Run(() => File.WriteAllText(Path.Combine(DirPath, discordUser.Id.ToString()), tshockUser.ID.ToString()));
 		}

@@ -17,10 +17,10 @@ namespace DiscordBridge
 					TShock.Utils.ColorTag($"Discord Bridge v{Version}", new Color(0, 255, 185)),
 					TShock.Utils.ColorTag(Author, Color.OrangeRed));
 
-				if (Client.State == ConnectionState.Connected && Client.Servers.Any())
+				if (Client.ConnectionState == ConnectionState.Connected && Client.Guilds.Any())
 				{
 					e.Player.SendInfoMessage("Your messages are being broadcasted to Discord Server(s): {0}",
-						String.Join(", ", Client.Servers.Select(s => TShock.Utils.ColorTag(s.Name, new Color(0, 255, 0)))));
+						String.Join(", ", Client.Guilds.Select(s => TShock.Utils.ColorTag(s.Name, new Color(0, 255, 0)))));
 				}
 				else
 				{
@@ -124,61 +124,23 @@ namespace DiscordBridge
 			e.Player.SendInfoMessage($"Available commands: {String.Join(", ", commands)}.");
 		}
 
-		private async void acceptInvite(CommandArgs e)
+		private void acceptInvite(CommandArgs e)
 		{
 			// Apparently bot accounts cannot accept invites, so this feature is useless. Gotta use the OAUTH2 API link generation instead
-			bool canAcceptInvites = false;
-
-			if (!canAcceptInvites)
-			{
-				e.Player.SendInfoMessage(" * As the Discord unnoficial application API dictates, bots are unable to accept invites.");
-				e.Player.SendInfoMessage(" * Copy the following link to your clipboard and access it with a web browser to register your bot instead.");
-				e.Player.SendInfoMessage(" * https://discordapp.com/oauth2/authorize?client_id=157730590492196864&scope=bot&permissions=0");
-				e.Player.SendInfoMessage(" * Replace client_id with your bot application ID. This is NOT your bot token, but the application client ID itself.");
-				return;
-			}
-
-			if (e.Parameters.Count < 1)
-			{
-				e.Player.SendErrorMessage($"Invalid syntax! Proper syntax: {Commands.Specifier}discord accept-invite <inviteId>");
-				return;
-			}
-
-			Invite invite = await Client.GetInvite(e.Parameters[0]);
-			if (invite == null)
-			{
-				e.Player.SendErrorMessage($"An invite by the ID '{e.Parameters[0]}' doesn't exist.");
-				return;
-			}
-
-			else if (invite.IsRevoked)
-			{
-				e.Player.SendErrorMessage("This invite has expired. Please generate a new one and try again.");
-				return;
-			}
-
-			e.Player.SendInfoMessage("Accepting the server invite and joining the server...");
-
-			if (await Client.JoinServer(e.Parameters[0]))
-			{
-				e.Player.SendSuccessMessage("The invite has been accepted. The bot is now part of {0} ({1}).",
-					invite.Server.Name, new Color(0, 255, 185),
-					"unless it was already a member of this server");
-			}
-			else
-			{
-				e.Player.SendErrorMessage("The bot was unable to accept the invite. Check logs for details.");
-			}
+		  e.Player.SendInfoMessage(" * As the Discord unnoficial application API dictates, bots are unable to accept invites.");
+		  e.Player.SendInfoMessage(" * Copy the following link to your clipboard and access it with a web browser to register your bot instead.");
+		  e.Player.SendInfoMessage(" * https://discordapp.com/oauth2/authorize?client_id=157730590492196864&scope=bot&permissions=0");
+		  e.Player.SendInfoMessage(" * Replace client_id with your bot application ID. This is NOT your bot token, but the application client ID itself.");
 		}
 
 		private async void connect(CommandArgs e)
 		{
 			bool force = String.Equals(e.Parameters.FirstOrDefault(), "-f", StringComparison.OrdinalIgnoreCase);
-			switch (Client.State)
+			switch (Client.ConnectionState)
 			{
 				case ConnectionState.Disconnected:
 					await Client.StartUp();
-					if (Client.State == ConnectionState.Connected)
+					if (Client.ConnectionState == ConnectionState.Connected)
 						e.Player.SendSuccessMessage(" * Discord Bridge bot connected.");
 					else
 						e.Player.SendErrorMessage(" * Discord Bridge bot failed to connect. Check your internet connection and try again.");
@@ -190,7 +152,7 @@ namespace DiscordBridge
 						e.Player.SendInfoMessage("The discord bot is already trying to connect.");
 					else
 					{
-						await Client.Disconnect();
+						await Client.StopAsync();
 						goto case ConnectionState.Disconnected;
 					}
 
@@ -199,14 +161,14 @@ namespace DiscordBridge
 				case ConnectionState.Connected:
 					if (force)
 					{
-						await Client.Disconnect();
+						await Client.StopAsync();
 						goto case ConnectionState.Disconnected;
 					}
 
 					e.Player.SendInfoMessage($"The discord bot is currently connected. Reconnect? ({Commands.Specifier}y OR {Commands.Specifier}n)");
 					e.Player.AddResponse("y", async (o) =>
 					{
-						await Client.Disconnect();
+						await Client.StopAsync();
 						await Client.StartUp();
 						e.Player.AwaitingResponse.Remove("n");
 						e.Player.SendSuccessMessage(" * Discord Bridge bot reconnected.");
@@ -227,8 +189,8 @@ namespace DiscordBridge
 		private async void disconnect(CommandArgs e)
 		{
 			e.Player.SendInfoMessage(" * Disconnecting...");
-			await Client.Disconnect();
-			if (Client.State == ConnectionState.Disconnected)
+			await Client.StopAsync();
+			if (Client.ConnectionState == ConnectionState.Disconnected)
 				e.Player.SendInfoMessage($"The discord bot is now offline. Use {Commands.Specifier}discord connect to bring it back up.");
 			else
 				e.Player.SendErrorMessage("The discord bot could not be disconnected at the moment. Try again later, or shut down the server if you really need to bring it down.");
@@ -261,11 +223,11 @@ namespace DiscordBridge
 
 			Config.BotToken = e.Parameters[0];
 			
-			if (Client.State == ConnectionState.Connected || Client.State == ConnectionState.Connecting)
-				await Client.Disconnect();
+			if (Client.ConnectionState == ConnectionState.Connected || Client.ConnectionState == ConnectionState.Connecting)
+				await Client.LogoutAsync();
 
 			await Client.StartUp();
-			if (Client.State == ConnectionState.Connected)
+			if (Client.ConnectionState == ConnectionState.Connected)
 				e.Player.SendSuccessMessage(" * Discord Bridge bot connected.");
 			else
 				e.Player.SendErrorMessage(" * Discord Bridge bot failed to connect. Check your internet connection and try again.");

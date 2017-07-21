@@ -127,7 +127,7 @@ namespace DiscordBridge.Chat
 					PlayerChatting?.Invoke(this, args);
 
 					Color color = ChatColorOverride ?? args.Message.Color ?? new Color(tsplr.Group.R, tsplr.Group.G, tsplr.Group.B);
-					NetMessage.SendData((int)PacketTypes.ChatText, -1, e.Who,
+					NetMessage.SendData((int)PacketTypes.SmartTextMessage, -1, e.Who,
 						NetworkText.FromLiteral(args.Message.ToString().FormatChat(args.ChatFormatters).ParseColors(args.ColorFormatters)),
 						e.Who, color.R, color.G, color.B);
 					NetMessage.SendData((int)PacketTypes.PlayerInfo, -1, -1, NetworkText.FromLiteral(name), e.Who, 0, 0, 0, 0);
